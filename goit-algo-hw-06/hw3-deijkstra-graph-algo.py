@@ -1,10 +1,10 @@
 import networkx as nx
-import matplotlib.pyplot as plt
+import heapq
 
-# Створимо граф транспортної мережі між містами України з вагами ребер
+# Create a weighted graph for the transportation network between cities in Ukraine
 G_ukraine_weighted = nx.Graph()
 
-# Додавання вершин (міст)
+# Add nodes (cities)
 cities = [
     'Kyiv', 'Lviv', 'Odessa', 'Dnipro', 'Kharkiv',
     'Zaporizhzhia', 'Vinnytsia', 'Chernihiv', 'Ivano-Frankivsk',
@@ -12,7 +12,7 @@ cities = [
 ]
 G_ukraine_weighted.add_nodes_from(cities)
 
-# Додавання ребер з вагами (відстань між містами, умовні дані)
+# Add edges with weights (distance between cities, assumed data)
 edges_ukraine_weighted = [
     ('Kyiv', 'Lviv', 540), ('Kyiv', 'Vinnytsia', 270), ('Kyiv', 'Chernihiv', 140), ('Kyiv', 'Dnipro', 480),
     ('Lviv', 'Ivano-Frankivsk', 130), ('Lviv', 'Uzhhorod', 260), ('Lviv', 'Rivne', 210),
@@ -22,43 +22,50 @@ edges_ukraine_weighted = [
 ]
 G_ukraine_weighted.add_weighted_edges_from(edges_ukraine_weighted)
 
-# Візуалізація графа з вагами
-def visualize_graph_with_weights(graph, path=None, title="Graph with Weights"):
-    plt.figure(figsize=(12, 10))
-    pos = nx.spring_layout(graph, seed=42)
-
-    # Візуалізація ребер
-    edge_colors = ['red' if (u, v) in path or (v, u) in path else 'gray' for u, v in graph.edges()] if path else 'gray'
-    edge_labels = nx.get_edge_attributes(graph, 'weight')
-
-    nx.draw(
-        graph, pos, with_labels=True, node_size=800, node_color='lightgreen',
-        font_size=16, font_color='black', edge_color=edge_colors, width=2
-    )
-    nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_color='blue')
-    plt.title(title, fontsize=20)
-    plt.show()
-
-# Реалізація алгоритму Дейкстри для пошуку найкоротшого шляху
 def dijkstra_shortest_path(graph, start, goal):
-    # Використовуємо вбудовану функцію NetworkX для алгоритму Дейкстри
-    shortest_path = nx.dijkstra_path(graph, start, goal)
-    shortest_path_length = nx.dijkstra_path_length(graph, start, goal)
+    # Extract edges formatted as (u, v, w)
+    edges = [(u, v, d['weight']) for u, v, d in graph.edges(data=True)]
 
-    # Візуалізація найкоротшого шляху
-    visualize_graph_with_weights(graph, list(zip(shortest_path, shortest_path[1:])),
-                                 f"Dijkstra Shortest Path from {start} to {goal}")
+    # Build the graph dictionary from edges
+    graph_dict = {}
+    for u, v, w in edges:
+        if u not in graph_dict:
+            graph_dict[u] = {}
+        if v not in graph_dict:
+            graph_dict[v] = {}
+        graph_dict[u][v] = w
+        graph_dict[v][u] = w  # Assuming the graph is undirected
 
-    return shortest_path, shortest_path_length
+    # Initialize distances and predecessors
+    distances = {node: float('infinity') for node in graph_dict}
+    distances[start] = 0
+    predecessors = {node: None for node in graph_dict}
+    priority_queue = [(0, start)]
 
-# Візуалізація графа з вагами
-visualize_graph_with_weights(G_ukraine_weighted, title="Graph with Weights")
+    # Implementing the priority queue
+    while priority_queue:
+        current_distance, current_node = heapq.heappop(priority_queue)
 
-# Пошук найкоротшого шляху між двома містами, наприклад, між 'Kyiv' та 'Zaporizhzhia'
+        if current_node == goal:
+            path = []
+            step = goal
+            while step:
+                path.append(step)
+                step = predecessors[step]
+            return path[::-1], distances[goal]
+
+        for neighbor, weight in graph_dict[current_node].items():
+            distance = current_distance + weight
+            if distance < distances[neighbor]:
+                distances[neighbor] = distance
+                predecessors[neighbor] = current_node
+                heapq.heappush(priority_queue, (distance, neighbor))
+
+    return [], float('infinity')  # if the goal is not reachable
+
+# Usage
 start_city = 'Kyiv'
 goal_city = 'Zaporizhzhia'
-
 shortest_path, shortest_path_length = dijkstra_shortest_path(G_ukraine_weighted, start_city, goal_city)
-
-print(f"Найкоротший шлях від {start_city} до {goal_city} за алгоритмом Дейкстри: {shortest_path}")
-print(f"Довжина найкоротшого шляху: {shortest_path_length} км")
+print(f"Shortest path from {start_city} to {goal_city}: {shortest_path}")
+print(f"Path length: {shortest_path_length} km")
